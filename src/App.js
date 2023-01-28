@@ -2,36 +2,49 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import Button from "./components/Button";
 import AddTask from "./components/AddTask";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import Tasks from "./components/Tasks";
 import {BrowserRouter as Router, Route, Routes} from "react-router-dom";
 import About from "./components/About";
+import axios from "axios";
 
 function App() {
-    const [tasks, setTasks] = useState([{
-        id: 1, name: 'Go to doctor', timeline: '20 Jan 2023', isRemembered: false
-    }, {
-        id: 2, name: 'Go to office', timeline: '22 Jan 2023', isRemembered: true
-    }, {
-        id: 3, name: 'Play games', timeline: '30 Mar 2023', isRemembered: false
-    },]);
-    const [isAddTask, setIsAddTask] = useState(false)
+    const [tasks, setTasks] = useState([]);
+    const [isAddTask, setIsAddTask] = useState(false);
+
+    useEffect(() => {
+        const getTasks = async () => {
+            await axios.get('http://localhost:5000/tasks').then((res) => {
+                setTasks(res.data)
+            })
+        }
+        getTasks();
+    }, []);
+
     const onBtnClick = () => {
         if (!isAddTask) setIsAddTask(true); else setIsAddTask(false);
     }
-    const onDataAdd = ({name, timeline, isRemembered}) => {
-        setTasks([...tasks, {id: 4, name: name, timeline: timeline, isRemembered: isRemembered}])
+    const onDataAdd = async ({name, timeline, isRemembered}) => {
+        await axios.post('http://localhost:5000/tasks', JSON.stringify({
+            name, timeline, isRemembered
+        }), {headers: {"Content-Type": 'application/json'}}).then((res) => {
+            setTasks([...tasks, res.data]);
+        })
     }
-    const onDataDelete = (id) => {
-        setTasks(tasks.filter((task) => task.id !== id))
+    const onDataDelete = async (id) => {
+        await axios.delete(`http://localhost:5000/tasks/${id}`).then((res) => res.status === 200 ? setTasks(tasks.filter((task) => task.id !== id)) : alert('Error deleting data ...'));
+
     }
-    const onDataRememberToggle = (id) => {
-        setTasks(
-            tasks.map((task) =>
-                task.id === id ? {...task, isRemembered: !task.isRemembered} : task
-            )
-        )
+    const onDataRememberToggle = async (id) => {
+        const taskToToggle = await axios.get(`http://localhost:5000/tasks/${id}`);
+        const updatedTask = {...taskToToggle.data, isRemembered: !taskToToggle.data.isRemembered};
+
+        const res = await axios.put(`http://localhost:5000/tasks/${id}`, JSON.stringify(updatedTask), {headers: {"Content-Type": "application/json"}})
+        const data = await res.data;
+
+        setTasks(tasks.map((task) => task.id === id ? {...task, isRemembered: data.isRemembered} : task))
     }
+
     return <>
         <Router>
             <div className="flex flex-col h-screen justify-between">
@@ -46,14 +59,12 @@ function App() {
                                     <div className="flex-grow">
                                         <Button name={isAddTask ? 'Cancel' : 'Add task'} onclick={onBtnClick}/>
                                         {isAddTask && <AddTask onAdd={onDataAdd}/>}
-                                        {tasks.length > 0
-                                            ? <Tasks
-                                                tasks={tasks}
-                                                onDelete={onDataDelete}
-                                                onRememberToggle={onDataRememberToggle}/>
-                                            : <>
-                                                <p className='mt-2'>No Tasks Available ...</p>
-                                            </>}
+                                        {tasks.length > 0 ? <Tasks
+                                            tasks={tasks}
+                                            onDelete={onDataDelete}
+                                            onRememberToggle={onDataRememberToggle}/> : <>
+                                            <p className='mt-2'>No Tasks Available ...</p>
+                                        </>}
                                     </div>
                                     <div className="flex-none w-14">
                                     </div>
